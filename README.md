@@ -19,3 +19,5 @@ Our goal is to develop an application tailored for the elderly in Singapore, des
    ```bash
    cd "your path"
 3. Start the application
+   ```bash
+      npx expo start
