@@ -1,43 +1,57 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, Text, Image, TouchableOpacity, Modal, Linking } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, Text, Image, TouchableOpacity, Modal, Linking, Alert } from 'react-native';
 import Background from '../components/Background';
-import { theme } from '../core/theme';
+import { getDatabase, ref, onValue } from 'firebase/database';
 
 export default function HealthConfirm({ route, navigation }) {
-  const { center } = route.params;
+  const { center, userId, userName } = route.params;
   const [modalVisible, setModalVisible] = useState(false);
+  const [contact, setContact] = useState('');
 
+  // Fetch contact info for the health center
+  useEffect(() => {
+    const db = getDatabase();
+    const centerRef = ref(db, `Health/${center.key}`);
+    onValue(centerRef, (snapshot) => {
+      const data = snapshot.val();
+      setContact(data.contact); 
+    });
+  }, [center.key]);
+
+  // Open Google Maps to the center's location
   const handleMap = () => {
-    const location = center.location.split(' (~')[0]; 
+    const location = center.location.split(' (~')[0];
     const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
-    Linking.openURL(url).catch(err => console.error("Couldn't load page", err));
+    Linking.openURL(url).catch(err => Alert.alert("Error", "Couldn't load page"));
   };
 
+  // Navigate back to the Dashboard screen
   const handleBack = () => {
-    navigation.goBack(); 
+    navigation.navigate('Dashboard');
   };
 
+  // Show contact information modal
   const handleContact = () => {
     setModalVisible(true);
   };
 
+  // Close modal and navigate to the Health screen
   const closeModalAndNavigateBack = () => {
     setModalVisible(false);
-    navigation.goBack();
+    navigation.navigate('Health');
   };
 
   return (
     <View style={styles.screenContainer}>
       <Background>
         <View style={styles.headerContainer}>
-          <Text style={styles.welcome}>Welcome Tan</Text>
+          <Text style={styles.welcome}>Welcome {userName}</Text>
         </View>
 
         <Text style={styles.activity}>HealthCare Details</Text>
 
         <View style={styles.container}>
           <View style={styles.rect}>
-            <Text style={styles.confirm}>Successfully Registered!</Text>
             <View style={styles.row}>
               <Image
                 source={center.image}
@@ -73,7 +87,7 @@ export default function HealthConfirm({ route, navigation }) {
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalView}>
-            <Text style={styles.modalText}>Contact Us at : +65 7899 5634</Text>
+            <Text style={styles.modalText}>Contact Us at: {contact}</Text>
             <TouchableOpacity style={styles.modalButton} onPress={closeModalAndNavigateBack}>
               <Text style={styles.buttonText}>Back</Text>
             </TouchableOpacity>
@@ -115,17 +129,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 10,
     marginBottom: 5,
-  },
-  confirm: {
-    fontFamily: 'Roboto',
-    fontStyle: 'normal',
-    fontWeight: 'bold',
-    color: '#121212',
-    fontSize: 26,
-    textAlign: 'center',
-    width: '100%',
-    marginTop: 10,
-    marginBottom: 15,
   },
   container: {
     flex: 1,
@@ -226,7 +229,8 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   modalText: {
-    fontSize: 13,
+    fontSize: 18,
+    fontWeight: 'bold',
     marginBottom: 20,
     textAlign: 'center',
   },
@@ -236,5 +240,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     borderRadius: 5,
     alignItems: 'center',
+  },
+  buttonGap: {
+    height: 10,
   },
 });

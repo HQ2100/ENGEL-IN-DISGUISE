@@ -1,18 +1,53 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, Text, Image, TouchableOpacity } from 'react-native';
 import Background from '../components/Background';
-import { theme } from '../core/theme';
+import { getDatabase, ref, onValue } from 'firebase/database';
+import { getAuth } from 'firebase/auth';
+
+const imageMap = {
+  "reward1.png": require("../assets/reward1.png"),
+  "reward2.png": require("../assets/reward2.png"),
+  "reward3.png": require("../assets/reward3.png"),
+  "reward4.png": require("../assets/reward4.png"),
+  "reward5.png": require("../assets/reward5.png"),
+  "reward6.png": require("../assets/reward6.png"),
+};
 
 export default function RewardsPage({ navigation }) {
-  const rewards = [
-    { image: require('../assets/reward1.png'), description: 'FoodPanda $20 Coupon - 2000 Points' },
-    { image: require('../assets/reward2.png'), description: 'FairPrice $10 Coupon - 1000 Points' },
-    { image: require('../assets/reward3.png'), description: 'YaKun $5 Coupon - 500 Points' },
-    { image: require('../assets/reward4.png'), description: 'Singapore Zoo Entry - 5000 Points' },
-    { image: require('../assets/reward5.png'), description: 'Singapore Flyer Entry - 5000 Points' },
-    { image: require('../assets/reward6.png'), description: 'Popular $10 Coupon - 1000 Points' },
-  ];
+  const [rewards, setRewards] = useState([]);
+  const [userName, setUserName] = useState('');
+  const [rewardPoints, setRewardPoints] = useState(0);
 
+  useEffect(() => {
+    const auth = getAuth();
+    const user = auth.currentUser;
+
+    if (user) {
+      const db = getDatabase();
+      const userRef = ref(db, `users/${user.uid}`);
+
+      // Fetch user name and reward points
+      onValue(userRef, (snapshot) => {
+        const data = snapshot.val();
+        setUserName(data.name || 'User');
+        setRewardPoints(data.reward || 0); 
+      });
+
+      // Fetch rewards data
+      const rewardsRef = ref(db, 'Rewards');
+      onValue(rewardsRef, (snapshot) => {
+        const data = snapshot.val();
+        const fetchedRewards = Object.keys(data).map(key => ({
+          ...data[key],
+          key: key,
+          image: imageMap[data[key].image],  // Ensure data[key].image matches a key in imageMap
+        }));
+        setRewards(fetchedRewards);
+      });
+    }
+  }, []);
+
+  // Navigate to RewardsConfirm screen with selected reward details
   const handleNavigation = (reward) => {
     navigation.navigate('RewardsConfirm', { reward });
   };
@@ -22,8 +57,8 @@ export default function RewardsPage({ navigation }) {
       <Background>
         <View style={styles.headerContainer}>
           <View>
-            <Text style={styles.welcome}>Welcome Tan</Text>
-            <Text style={styles.rewardPoints}>Reward Points: </Text>
+            <Text style={styles.welcome}>Welcome {userName}</Text>
+            <Text style={styles.rewardPoints}>Reward Points: {rewardPoints}</Text>
           </View>
           <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
             <Text style={styles.backButtonText}>Back</Text>
@@ -40,7 +75,7 @@ export default function RewardsPage({ navigation }) {
                 resizeMode="contain"
                 style={styles.rewardImage}
               />
-              <Text style={styles.rewardDescription}>{reward.description}</Text>
+              <Text style={styles.rewardDescription}>{reward.title} - {reward.points} Points</Text>
             </TouchableOpacity>
           ))}
         </View>

@@ -1,76 +1,114 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, Text, Image, TouchableOpacity } from 'react-native';
 import Background from '../components/Background';
-import { theme } from '../core/theme';
+import { getDatabase, ref, onValue } from 'firebase/database';
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
+
+const imageMap = {
+  "walk.png": require("../assets/walk.png"),
+  "taichi.png": require("../assets/taichi.png"),
+  "dance.png": require("../assets/dance.png"),
+};
 
 export default function Activities({ navigation }) {
-  const activities = [
-    {
-      title: "Morning Walk",
-      location: "Sembawang Park (~560m away)",
-      time: "7:30am Daily",
-      image: require("../assets/walk.png"),
-      remarks: [
-        "Come in sports attire (covered shoes, comfortable clothing)",
-        "Arrive 15mins earlier for attendance taking"
-      ],
-      points: 50
-    },
-    {
-      title: "Taichi",
-      location: "Block 772 Sembawang Ave 2 (~780m away)",
-      time: "8am (Mon, Wed, Fri, Sun)",
-      image: require("../assets/taichi.png"),
-      remarks: [
-        "Wear comfortable clothing",
-        "Bring a water bottle"
-      ],
-      points: 40
-    },
-    {
-      title: "Dance",
-      location: "Sembawang Community Centre (~1.2km away)",
-      time: "7:30pm (Wed, Thur, Fri)",
-      image: require("../assets/dance.png"),
-      remarks: [
-        "Wear dance appropriate clothing",
-        "Bring a water bottle"
-      ],
-      points: 60
-    },
-  ];
+  const [activities, setActivities] = useState([]);
+  const [registeredActivities, setRegisteredActivities] = useState({});
+  const [userId, setUserId] = useState(null);
+  const [userName, setUserName] = useState('');
+
+  useEffect(() => {
+    const auth = getAuth();
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setUserId(user.uid);
+        const db = getDatabase();
+        const userRef = ref(db, `users/${user.uid}`);
+        
+        // Fetch user name and registered activities
+        onValue(userRef, (snapshot) => {
+          const data = snapshot.val();
+          setUserName(data.name);
+          setRegisteredActivities(data.registeredActivities || {});
+        });
+      } else {
+        // Handle user not logged in
+      }
+    });
+
+    const db = getDatabase();
+    const activitiesRef = ref(db, 'Activity');
+    onValue(activitiesRef, (snapshot) => {
+      const data = snapshot.val();
+      const fetchedActivities = Object.keys(data).map(key => ({
+        ...data[key],
+        key: key,
+        image: data[key].image,  // Pass image name
+        imageSource: imageMap[data[key].image],  // Ensure data[key].image matches a key in imageMap
+        distance: parseDistance(data[key].distance)
+      }));
+      fetchedActivities.sort((a, b) => a.distance - b.distance);
+      setActivities(fetchedActivities);
+    });
+  }, []);
+
+  const parseDistance = (distance) => {
+    if (typeof distance === 'string') {
+      distance = distance.trim().toLowerCase();
+      if (distance.endsWith('km')) {
+        return parseFloat(distance) * 1000;
+      } else if (distance.endsWith('m')) {
+        return parseFloat(distance);
+      }
+    }
+    return parseFloat(distance); // Default case if distance is already in meters as a number
+  };
+
+  const formatDistance = (distance) => {
+    if (distance >= 1000) {
+      return `${(distance / 1000).toFixed(1)}km`;
+    }
+    return `${distance}m`;
+  };
 
   const handleRegister = (activity) => {
-    navigation.navigate('ActivityConfirm', { activity });
+    if (userId) {
+      navigation.navigate('ActivityConfirm', { activity, userId });
+    } else {
+      console.error("User not authenticated");
+    }
   };
 
   return (
     <View style={styles.screenContainer}>
       <Background>
         <View style={styles.headerContainer}>
-          <Text style={styles.welcome}>Welcome Tan</Text>
+          <Text style={styles.welcome}>Welcome {userName}</Text>
           <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
             <Text style={styles.backButtonText}>Back</Text>
           </TouchableOpacity>
         </View>
-
         <Text style={styles.activity}>Activities</Text>
-
         <View style={styles.container}>
           <View style={styles.rect}>
             {activities.map((activity, index) => (
               <View key={index} style={styles.row}>
                 <Image
-                  source={activity.image}
+                  source={activity.imageSource}
                   resizeMode="contain"
                   style={styles.image}
                 />
                 <View style={styles.textContainer}>
                   <Text style={styles.title}>{activity.title}</Text>
-                  <Text style={styles.location}>Location: {activity.location}</Text>
+                  <Text style={styles.location}>Location: {activity.location} (~{formatDistance(activity.distance)} away)</Text>
                   <Text style={styles.time}>Time: {activity.time}</Text>
-                  <TouchableOpacity style={styles.registerButton} onPress={() => handleRegister(activity)}>
-                    <Text style={styles.registerButtonText}>Register</Text>
+                  <TouchableOpacity
+                    style={[
+                      styles.viewInfoButton,
+                      registeredActivities[activity.key] && styles.registeredButton,
+                    ]}
+                    onPress={() => handleRegister(activity)}
+                  >
+                    <Text style={styles.registerButtonText}>View Info</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -121,9 +159,8 @@ const styles = StyleSheet.create({
     color: '#121212',
     fontSize: 26,
     textAlign: 'center',
-    width: '100%',
     marginTop: 10,
-    marginBottom: 5, 
+    marginBottom: 5,
   },
   container: {
     flex: 1,
@@ -138,7 +175,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 20,
     alignItems: 'flex-start',
-    marginTop: 0, 
+    marginTop: 0,
   },
   row: {
     flexDirection: 'row',
@@ -170,13 +207,16 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
   },
-  registerButton: {
+  viewInfoButton: {
     marginTop: 10,
     paddingVertical: 5,
     paddingHorizontal: 10,
     backgroundColor: '#4bb0eb',
     borderRadius: 200,
     alignItems: 'center',
+  },
+  registeredButton: {
+    backgroundColor: '#4CAF50', 
   },
   registerButtonText: {
     color: 'white',

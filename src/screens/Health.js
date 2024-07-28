@@ -1,46 +1,71 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, Text, Image, TouchableOpacity } from 'react-native';
 import Background from '../components/Background';
-import { theme } from '../core/theme';
+import { getDatabase, ref, onValue } from 'firebase/database';
+import { getAuth } from 'firebase/auth';
+
+const imageMap = {
+  "raffles.png": require("../assets/raffles.png"),
+  "family.png": require("../assets/family.png"),
+  "healthway.png": require("../assets/healthway.png"),
+};
 
 export default function Health({ navigation }) {
-  const healthCenters = [
-    {
-      title: "Raffles Medical",
-      location: "Block 355A Sembawang Wy (~560m away)",
-      time: "8am - 10pm Daily",
-      image: require("../assets/raffles.png"),
-    },
-    {
-      title: "Family Clinic",
-      location: "Block 505 Canberra Link (~780m away)",
-      time: "8am - 10pm Daily",
-      image: require("../assets/family.png"),
-    },
-    {
-      title: "Healthway Medical Clinic",
-      location: "Block 406 Sembawang Dr (~1.2km away)",
-      time: "8am - 10pm Daily",
-      image: require("../assets/healthway.png"),
-    },
-  ];
+  const [healthCenters, setHealthCenters] = useState([]);
+  const [userName, setUserName] = useState('');
+  const [userId, setUserId] = useState('');
+
+  useEffect(() => {
+    const auth = getAuth();
+    const user = auth.currentUser;
+
+    if (user) {
+      setUserId(user.uid);
+      const db = getDatabase();
+      const userRef = ref(db, `users/${user.uid}`);
+
+      // Fetch user name
+      onValue(userRef, (snapshot) => {
+        const data = snapshot.val();
+        setUserName(data.name || 'User');
+      });
+
+      // Fetch health centers data
+      const healthCentersRef = ref(db, 'Health');
+      onValue(healthCentersRef, (snapshot) => {
+        const data = snapshot.val();
+        const fetchedCenters = Object.keys(data).map(key => ({
+          ...data[key],
+          key: key,
+          image: imageMap[data[key].image],  // Ensure data[key].image matches a key in imageMap
+        }));
+        fetchedCenters.sort((a, b) => a.distance - b.distance);
+        setHealthCenters(fetchedCenters);
+      });
+    }
+  }, []);
+
+  const formatDistance = (distance) => {
+    if (distance >= 1000) {
+      return `${(distance / 1000).toFixed(1)}km`;
+    }
+    return `${distance}m`;
+  };
 
   const handleView = (center) => {
-    navigation.navigate('HealthConfirm', { center });
+    navigation.navigate('HealthConfirm', { center, userId, userName });
   };
 
   return (
     <View style={styles.screenContainer}>
       <Background>
         <View style={styles.headerContainer}>
-          <Text style={styles.welcome}>Welcome Tan</Text>
+          <Text style={styles.welcome}>Welcome {userName}</Text>
           <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
             <Text style={styles.backButtonText}>Back</Text>
           </TouchableOpacity>
         </View>
-
         <Text style={styles.activity}>HealthCare</Text>
-
         <View style={styles.container}>
           <View style={styles.rect}>
             {healthCenters.map((center, index) => (
@@ -52,7 +77,7 @@ export default function Health({ navigation }) {
                 />
                 <View style={styles.textContainer}>
                   <Text style={styles.title}>{center.title}</Text>
-                  <Text style={styles.location}>Location: {center.location}</Text>
+                  <Text style={styles.location}>Location: {center.location} (~{formatDistance(center.distance)} away)</Text>
                   <Text style={styles.time}>Operating Hour: {center.time}</Text>
                   <TouchableOpacity style={styles.registerButton} onPress={() => handleView(center)}>
                     <Text style={styles.registerButtonText}>View</Text>

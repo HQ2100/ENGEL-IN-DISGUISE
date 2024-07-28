@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Engel",
-    "slug": "Engel",
+    "slug": "engel-in-disguise",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -12,16 +12,30 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "jsEngine": "hermes"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "jsEngine": "hermes"
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "9bcf5139-07dd-4ce6-b4d4-15b85de90a72"
+      }
+    },
+    "owner": "hongquan21",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/9bcf5139-07dd-4ce6-b4d4-15b85de90a72"
     }
   }
 }

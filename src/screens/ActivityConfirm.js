@@ -1,46 +1,111 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, Text, Image, TouchableOpacity, Modal, Linking } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, Text, Image, TouchableOpacity, Modal, Linking, Alert } from 'react-native';
 import Background from '../components/Background';
-import { theme } from '../core/theme';
+import { getDatabase, ref, onValue, update, remove } from 'firebase/database';
+
+const imageMap = {
+  "walk.png": require("../assets/walk.png"),
+  "taichi.png": require("../assets/taichi.png"),
+  "dance.png": require("../assets/dance.png"),
+  "default.png": require("../assets/default.png"), // Default image if image not able to render
+};
 
 export default function ActivityConfirm({ route, navigation }) {
-  const { activity } = route.params;
+  const { activity: initialActivity, userId } = route.params;
+  const [activity, setActivity] = useState(initialActivity);
   const [modalVisible, setModalVisible] = useState(false);
+  const [isRegistered, setIsRegistered] = useState(false);
+  const [userNameState, setUserNameState] = useState('');
 
+  // Fetch and monitor user and activity registration state
+  useEffect(() => {
+    if (userId) {
+      const db = getDatabase();
+      const userRef = ref(db, `users/${userId}`);
+      onValue(userRef, (snapshot) => {
+        const data = snapshot.val();
+        setUserNameState(data.name || 'User');
+      });
+
+      const activityRef = ref(db, `users/${userId}/registeredActivities/${initialActivity.key}`);
+      onValue(activityRef, (snapshot) => {
+        if (snapshot.exists()) {
+          setIsRegistered(true);
+        } else {
+          setIsRegistered(false);
+        }
+      });
+    }
+
+    // Fetch full activity details if not present
+    if (!initialActivity.location) {
+      const db = getDatabase();
+      const activityRef = ref(db, `Activity/${initialActivity.key}`);
+      onValue(activityRef, (snapshot) => {
+        if (snapshot.exists()) {
+          setActivity({ ...snapshot.val(), key: initialActivity.key });
+        }
+      });
+    }
+  }, [userId, initialActivity]);
+
+  // Navigation and UI interactions
   const handleMap = () => {
-    const location = activity.location.split(' (~')[0]; 
+    const location = activity.location.split(' (~')[0];
     const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
-    Linking.openURL(url).catch(err => console.error("Couldn't load page", err));
+    Linking.openURL(url).catch(err => Alert.alert("Error", "Couldn't load page"));
   };
 
   const handleBack = () => {
-    navigation.navigate('Dashboard'); 
+    navigation.goBack();
   };
 
+   // Handle registration or cancellation actions
+  const handleRegister = () => {
+    const db = getDatabase();
+    const activityRef = ref(db, `users/${userId}/registeredActivities/${activity.key}`);
+    update(activityRef, { ...activity })
+      .then(() => {
+        setIsRegistered(true);
+        setModalVisible(false);
+      })
+      .catch(err => Alert.alert("Error", "Couldn't register for activity"));
+  };
+
+  // Handle cancellation of regitration
   const handleCancel = () => {
     setModalVisible(true);
   };
 
-  const closeModalAndNavigateBack = () => {
-    setModalVisible(false);
-    navigation.navigate('Dashboard');
+  // Handle update of database to cancel
+  const handleConfirmCancel = () => {
+    const db = getDatabase();
+    const activityRef = ref(db, `users/${userId}/registeredActivities/${activity.key}`);
+    remove(activityRef)
+      .then(() => {
+        setIsRegistered(false);
+        setModalVisible(false);
+      })
+      .catch(err => Alert.alert("Error", "Couldn't cancel registration"));
   };
 
   return (
     <View style={styles.screenContainer}>
       <Background>
         <View style={styles.headerContainer}>
-          <Text style={styles.welcome}>Welcome Tan</Text>
+          <Text style={styles.welcome}>Welcome {userNameState}</Text>
         </View>
 
         <Text style={styles.activity}>Activity Details</Text>
 
         <View style={styles.container}>
           <View style={styles.rect}>
-            <Text style={styles.confirm}>Successfully Registered!</Text>
+            <Text style={styles.confirm}>
+              {isRegistered ? "Successfully Registered!" : "Not Registered"}
+            </Text>
             <View style={styles.row}>
               <Image
-                source={activity.image}
+                source={imageMap[activity.image] || imageMap["default.png"]}
                 resizeMode="contain"
                 style={styles.image}
               />
@@ -55,18 +120,22 @@ export default function ActivityConfirm({ route, navigation }) {
             </View>
             <View style={styles.remarksContainer}>
               <Text style={styles.remarksHeader}>Remarks:</Text>
-              {activity.remarks.map((remark, index) => (
-                <Text key={index} style={styles.remarks}>{remark}</Text>
-              ))}
+              <Text style={styles.remarks}>{activity.remarks || 'No remarks available'}</Text>
               <Text style={styles.points}>Points to be earned after completing: {activity.points}</Text>
             </View>
             <View style={styles.buttonRow}>
               <TouchableOpacity style={[styles.actionButton, styles.backButton]} onPress={handleBack}>
                 <Text style={styles.buttonText}>Back</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.actionButton, styles.cancelButton]} onPress={handleCancel}>
-                <Text style={styles.buttonText}>Cancel</Text>
-              </TouchableOpacity>
+              {isRegistered ? (
+                <TouchableOpacity style={[styles.actionButton, styles.cancelButton]} onPress={handleCancel}>
+                  <Text style={styles.buttonText}>Cancel</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity style={[styles.actionButton, styles.registerButton]} onPress={handleRegister}>
+                  <Text style={styles.buttonText}>Register</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         </View>
@@ -80,9 +149,13 @@ export default function ActivityConfirm({ route, navigation }) {
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalView}>
-            <Text style={styles.modalText}>Successfully Cancelled!</Text>
-            <TouchableOpacity style={styles.modalButton} onPress={closeModalAndNavigateBack}>
-              <Text style={styles.buttonText}>Back</Text>
+            <Text style={styles.modalText}>Are you sure you want to cancel your registration?</Text>
+            <TouchableOpacity style={styles.modalButton} onPress={handleConfirmCancel}>
+              <Text style={styles.buttonText}>Yes, Cancel</Text>
+            </TouchableOpacity>
+            <View style={styles.buttonGap} />
+            <TouchableOpacity style={styles.modalButton} onPress={() => setModalVisible(false)}>
+              <Text style={styles.buttonText}>No, Go Back</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -177,7 +250,7 @@ const styles = StyleSheet.create({
   },
   remarksContainer: {
     alignItems: 'flex-start',
-    marginLeft: 10, 
+    marginLeft: 10,
   },
   remarksHeader: {
     fontSize: 14,
@@ -229,6 +302,9 @@ const styles = StyleSheet.create({
   cancelButton: {
     backgroundColor: '#eb4b4b',
   },
+  registerButton: {
+    backgroundColor: '#4CAF50', 
+  },
   buttonText: {
     color: 'white',
     fontWeight: 'bold',
@@ -245,11 +321,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 20,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
   },
   modalText: {
     fontSize: 18,
@@ -263,5 +334,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     borderRadius: 5,
     alignItems: 'center',
+  },
+  buttonGap: {
+    height: 10,
   },
 });

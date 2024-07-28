@@ -1,19 +1,60 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, Text, Image, TouchableOpacity, Modal } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, Text, Image, TouchableOpacity, Modal, Alert } from 'react-native';
 import Background from '../components/Background';
-import { theme } from '../core/theme';
+import { getDatabase, ref, onValue, update } from 'firebase/database';
+import { getAuth } from 'firebase/auth';
 
-export default function SomeScreen({ route, navigation }) {
+export default function RewardsConfirm({ route, navigation }) {
   const { reward } = route.params;
   const [modalVisible, setModalVisible] = useState(false);
+  const [modalMessage, setModalMessage] = useState('');
+  const [rewardPoints, setRewardPoints] = useState(0);
+  const [userName, setUserName] = useState('');
+  const [userId, setUserId] = useState('');
 
-  
-  const [item, points] = reward.description.split(' - ');
+  useEffect(() => {
+    const auth = getAuth();
+    const user = auth.currentUser;
 
+    if (user) {
+      setUserId(user.uid);
+      const db = getDatabase();
+      const userRef = ref(db, `users/${user.uid}`);
+
+      // Fetch user name and reward points
+      onValue(userRef, (snapshot) => {
+        const data = snapshot.val();
+        setUserName(data.name || 'User');
+        setRewardPoints(data.reward || 0);
+      });
+    }
+  }, []);
+
+  // Handle reward purchase
   const handlePurchase = () => {
-    setModalVisible(true);
+    if (rewardPoints >= reward.points) {
+      const newPoints = rewardPoints - reward.points;
+      const db = getDatabase();
+      const userRef = ref(db, `users/${userId}`);
+
+      // Update the user's reward points after purchase
+      update(userRef, { reward: newPoints })
+        .then(() => {
+          setModalMessage('Successfully Purchased! Coupon will be emailed to you.');
+          setModalVisible(true);
+        })
+        .catch(err => {
+          Alert.alert("Error", "Failed to update points. Please try again.");
+        });
+    } else {
+       // Notify user of insufficient points
+      const pointsNeeded = reward.points - rewardPoints;
+      setModalMessage(`Insufficient points! You're ${pointsNeeded} points away.`);
+      setModalVisible(true);
+    }
   };
 
+  // Close modal and navigate back to the previous screen
   const closeModalAndNavigateBack = () => {
     setModalVisible(false);
     navigation.goBack();
@@ -23,7 +64,7 @@ export default function SomeScreen({ route, navigation }) {
     <View style={styles.screenContainer}>
       <Background>
         <View style={styles.headerContainer}>
-          <Text style={styles.welcome}>Welcome Tan</Text>
+          <Text style={styles.welcome}>Welcome {userName}</Text>
           <TouchableOpacity style={styles.topBackButton} onPress={() => navigation.goBack()}>
             <Text style={styles.backButtonText}>Back</Text>
           </TouchableOpacity>
@@ -40,8 +81,9 @@ export default function SomeScreen({ route, navigation }) {
                 style={styles.image}
               />
               <View style={styles.textContainer}>
-                <Text style={styles.title}>Item: {item}</Text>
-                <Text style={styles.points}>{points}</Text>
+                <Text style={styles.title}>Item: {reward.title}</Text>
+                <Text style={styles.points}>Points: {reward.points}</Text>
+                <Text style={styles.userPoints}>Your Points: {rewardPoints}</Text>
               </View>
             </View>
             <View style={styles.buttonRow}>
@@ -64,7 +106,7 @@ export default function SomeScreen({ route, navigation }) {
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalView}>
-            <Text style={styles.modalText}>Successfully Purchased! Coupon will be emailed to you.</Text>
+            <Text style={styles.modalText}>{modalMessage}</Text>
             <TouchableOpacity style={styles.modalButton} onPress={closeModalAndNavigateBack}>
               <Text style={styles.buttonText}>Back</Text>
             </TouchableOpacity>
@@ -150,6 +192,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     flexWrap: 'wrap',
   },
+  userPoints: {
+    fontSize: 16,
+    marginTop: 5,
+    color: '#4bb0eb',
+  },
   image: {
     width: 100,
     height: 100,
@@ -209,4 +256,3 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 });
-

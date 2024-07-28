@@ -16,6 +16,7 @@ import Health from './src/screens/Health';
 import HealthConfirm from './src/screens/HealthConfirm';
 import RewardsPage from './src/screens/RewardsPage';
 import RewardsConfirm from './src/screens/RewardsConfirm';
+import Friends from './src/screens/Friends';
 
 const Stack = createStackNavigator();
 
@@ -24,7 +25,7 @@ export default function App() {
     <Provider theme={theme}>
       <NavigationContainer>
         <Stack.Navigator
-          initialRouteName="Dashboard"
+          initialRouteName="StartScreen"
           screenOptions={{
             headerShown: false,
           }}
@@ -40,6 +41,7 @@ export default function App() {
           <Stack.Screen name="HealthConfirm" component={HealthConfirm} />
           <Stack.Screen name="RewardsPage" component={RewardsPage} />
           <Stack.Screen name="RewardsConfirm" component={RewardsConfirm} />
+          <Stack.Screen name="Friends" component={Friends} />
         </Stack.Navigator>
       </NavigationContainer>
     </Provider>

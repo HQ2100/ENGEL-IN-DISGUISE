@@ -1,47 +1,68 @@
-import React, { useState } from 'react'
-import { View, StyleSheet, TouchableOpacity } from 'react-native'
-import { Text } from 'react-native-paper'
-import Background from '../components/Background'
-import Logo from '../components/Logo'
-import Header from '../components/Header'
-import Button from '../components/Button'
-import TextInput from '../components/TextInput'
-import BackButton from '../components/BackButton'
-import { theme } from '../core/theme'
-import { emailValidator } from '../helpers/emailValidator'
-import { passwordValidator } from '../helpers/passwordValidator'
-import { nameValidator } from '../helpers/nameValidator'
+import React, { useState } from 'react';
+import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { Text } from 'react-native-paper';
+import Background from '../components/Background';
+import Logo from '../components/Logo';
+import Header from '../components/Header';
+import Button from '../components/Button';
+import TextInput from '../components/TextInput';
+import BackButton from '../components/BackButton';
+import { theme } from '../core/theme';
+import { emailValidator } from '../helpers/emailValidator';
+import { passwordValidator } from '../helpers/passwordValidator';
+import { nameValidator } from '../helpers/nameValidator';
 import { auth } from '../../firebaseConfig';
 import { createUserWithEmailAndPassword } from "firebase/auth";
+import { getDatabase, ref, set } from 'firebase/database';
 
 export default function RegisterScreen({ navigation }) {
-  const [name, setName] = useState({ value: '', error: '' })
-  const [email, setEmail] = useState({ value: '', error: '' })
-  const [password, setPassword] = useState({ value: '', error: '' })
+  const [name, setName] = useState({ value: '', error: '' });
+  const [email, setEmail] = useState({ value: '', error: '' });
+  const [password, setPassword] = useState({ value: '', error: '' });
 
-  const onSignUpPressed = () => {
-    const nameError = nameValidator(name.value)
-    const emailError = emailValidator(email.value)
-    const passwordError = passwordValidator(password.value)
-    if (emailError || passwordError || nameError) {
-      setName({ ...name, error: nameError })
-      setEmail({ ...email, error: emailError })
-      setPassword({ ...password, error: passwordError })
-      return
+  const onSignUpPressed = async () => {
+    const nameError = await nameValidator(name.value);
+    const emailError = emailValidator(email.value);
+    const passwordError = passwordValidator(password.value);
+
+    if (nameError || emailError || passwordError) {
+      setName({ ...name, error: nameError });
+      setEmail({ ...email, error: emailError });
+      setPassword({ ...password, error: passwordError });
+      return;
     }
+
     createUserWithEmailAndPassword(auth, email.value, password.value)
-    .then(() => {
-      console.log('User registered and logged in!');
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Dashboard' }],
+      .then((userCredential) => {
+        // User is successfully registered and logged in
+        console.log('User registered and logged in!');
+        const user = userCredential.user;
+
+        // Create a reference to the Firebase Realtime Database
+        const db = getDatabase();
+        const userProfileRef = ref(db, 'users/' + user.uid);
+
+        // Set the user profile data in the database
+        set(userProfileRef, {
+          name: name.value,
+          email: email.value,
+          reward: 100
+        }).then(() => {
+          // Navigate to the dashboard after the profile is created
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'Dashboard' }],
+          });
+        }).catch((error) => {
+          console.error("Failed to create user profile:", error);
+        });
+
+      })
+      .catch(error => {
+        console.error(error);
+        alert("Registration failed: " + error.message);
       });
-    })
-    .catch(error => {
-      console.error(error);
-      alert("Registration failed: " + error.message);
-    });
-  }
+  };
 
   return (
     <Background>
@@ -82,18 +103,16 @@ export default function RegisterScreen({ navigation }) {
         onPress={onSignUpPressed}
         style={{ marginTop: 24 }}
       >
-        Next
+        Sign Up
       </Button>
       <View style={styles.row}>
-        <Text>I already have an account !</Text>
-      </View>
-      <View style={styles.row}>
+        <Text>Already have an account? </Text>
         <TouchableOpacity onPress={() => navigation.replace('LoginScreen')}>
-          <Text style={styles.link}>Log in</Text>
+          <Text style={styles.link}>Login</Text>
         </TouchableOpacity>
       </View>
     </Background>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -105,4 +124,4 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: theme.colors.primary,
   },
-})
+});
