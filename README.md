@@ -21,3 +21,6 @@ Our goal is to develop an application tailored for the elderly in Singapore, des
 3. Start the application
    ```bash
       npx expo start
+
+### Disclaimer
+Log in feature has been adapted from https://github.com/daoodaba975/exlogrn/tree/main
